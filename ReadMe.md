@@ -42,7 +42,7 @@ Input vs Sketch Example:
 ---
 
 ## 📂 Project Structure
-    - files
+    
     ```bash
         ├── index.py       # Main script
         ├── demo.png       # Sample input image
