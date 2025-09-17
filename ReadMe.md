@@ -27,3 +27,14 @@ Input vs Sketch Example:
 - Install dependencies:
   ```bash
   pip install opencv-python Pillow numpy
+- tkinter (usually comes with Python; install separately if missing):
+  ```bash
+  sudo apt install python3-tk    # Linux (Debian/Ubuntu)
+
+---
+
+## 🚀 Run the Project
+- Clone the repo:
+  ```bash
+  git clone https://github.com/pavana-namburi/Image-editor
+  cd image-editor
