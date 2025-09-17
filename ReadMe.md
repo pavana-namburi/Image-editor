@@ -18,7 +18,7 @@ Input vs Sketch Example:
 
 | Original Image | Pencil Sketch |
 |----------------|---------------|
-| ![Input](demo.png) | ![Output](output.png) |
+| ![Input](demo.jpg) | ![Output](output.png) |
 
 ---
 
