@@ -42,8 +42,6 @@ Input vs Sketch Example:
 ---
 
 ## 📂 Project Structure
-    
-    ```bash
         ├── index.py       # Main script
         ├── demo.png       # Sample input image
         ├── output.jpg     # Sample output sketch
