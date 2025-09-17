@@ -37,12 +37,13 @@ Input vs Sketch Example:
 - Clone the repo:
     ```bash
     git clone https://github.com/pavana-namburi/Image-editor
-    cd image-editor
+    cd Image-editor
 
 ---
 
 ## 📂 Project Structure
-- ```bash
+    - files
+    ```bash
         ├── index.py       # Main script
         ├── demo.png       # Sample input image
         ├── output.jpg     # Sample output sketch
