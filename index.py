@@ -73,6 +73,7 @@ class SketchArtApp:
 
     def set_status(self, msg):
         self.status.config(text=msg)
+        self.status.update_idletasks()
 
     def resize_image(self, image, max_width, max_height):
         original_width, original_height = image.size
@@ -91,13 +92,19 @@ class SketchArtApp:
         return image.resize((new_width, new_height), Image.LANCZOS)
 
     def upload_image(self):
-        self.image_path = filedialog.askopenfilename(filetypes=[("Image files", ".jpg;.jpeg;*.png")])
+        self.image_path = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg;*.jpeg;*.png")])
         if not self.image_path:
             return
-        self.original_image = Image.open(self.image_path)
+        try:
+            self.original_image = Image.open(self.image_path)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open image: {e}")
+            return
         resized_image = self.resize_image(self.original_image, 550, 500)
         self.zoom_factor = 1.0
         self.display_original_image(resized_image)
+        self.sketch_image = None
+        self.undo_stack.clear()
         self.set_status("Image uploaded.")
 
     def display_original_image(self, image):
@@ -106,6 +113,9 @@ class SketchArtApp:
         self.canvas_original.create_image(0, 0, anchor=tk.NW, image=self.original_tk_image)
 
     def display_sketch_image(self, image):
+        if image is None:
+            self.canvas_sketch.delete("all")
+            return
         self.sketch_tk_image = ImageTk.PhotoImage(image)
         self.canvas_sketch.delete("all")
         self.canvas_sketch.create_image(0, 0, anchor=tk.NW, image=self.sketch_tk_image)
@@ -118,7 +128,7 @@ class SketchArtApp:
         else:
             return
         self.zoom_factor *= scale_factor
-        new_size = (int(image_to_zoom.width * self.zoom_factor), int(image_to_zoom.height * self.zoom_factor))
+        new_size = (max(1, int(image_to_zoom.width * self.zoom_factor)), max(1, int(image_to_zoom.height * self.zoom_factor)))
         resized_image = image_to_zoom.resize(new_size, Image.LANCZOS)
         self.display_sketch_image(resized_image)
 
@@ -143,20 +153,34 @@ class SketchArtApp:
         if not self.image_path:
             messagebox.showerror("Error", "Please upload an image first.")
             return
+        self.progress["value"] = 10
+        self.progress.update_idletasks()
         cv_image = cv2.imread(self.image_path)
+        if cv_image is None:
+            messagebox.showerror("Error", "Failed to read image with OpenCV.")
+            return
         gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+        self.progress["value"] = 30
+        self.progress.update_idletasks()
         inverted_image = cv2.bitwise_not(gray_image)
         blurred_image = cv2.GaussianBlur(inverted_image, (21, 21), 0)
+        self.progress["value"] = 60
+        self.progress.update_idletasks()
         sketch_image = cv2.divide(gray_image, 255 - blurred_image, scale=256.0)
         sketch_image_pil = Image.fromarray(sketch_image)
+        self.undo_stack.append(self.sketch_image if self.sketch_image is not None else None)
         self.display_sketch_image(sketch_image_pil)
         self.sketch_image = sketch_image_pil
+        self.progress["value"] = 100
+        self.progress.update_idletasks()
         self.set_status("Pencil sketch applied.")
+        self.progress["value"] = 0
 
     def convert_to_dark_sketch(self):
         if self.original_image is None:
+            messagebox.showerror("Error", "Please upload an image first.")
             return
-        self.undo_stack.append(self.sketch_image)
+        self.undo_stack.append(self.sketch_image if self.sketch_image is not None else None)
         grayscale_image = self.original_image.convert("L")
         inverted_image = Image.eval(grayscale_image, lambda x: 255 - x)
         blurred_image = inverted_image.filter(ImageFilter.GaussianBlur(21))
@@ -166,12 +190,16 @@ class SketchArtApp:
 
     def apply_vintage_filter(self):
         if self.original_image is None:
+            messagebox.showerror("Error", "Please upload an image first.")
             return
-        self.undo_stack.append(self.sketch_image)
+        self.undo_stack.append(self.sketch_image if self.sketch_image is not None else None)
         vintage_image = np.array(self.original_image).astype(np.float32)
-        vintage_image[:, :, 0] *= 0.9
-        vintage_image[:, :, 1] *= 0.8
-        vintage_image[:, :, 2] *= 0.7
+        if vintage_image.ndim == 2 or vintage_image.shape[2] == 1:
+            # Convert grayscale to RGB for filter
+            vintage_image = np.stack([vintage_image]*3, axis=-1)
+        vintage_image[..., 0] *= 0.9
+        vintage_image[..., 1] *= 0.8
+        vintage_image[..., 2] *= 0.7
         vintage_image = np.clip(vintage_image, 0, 255).astype(np.uint8)
         self.sketch_image = Image.fromarray(vintage_image)
         self.display_sketch_image(self.sketch_image)
@@ -179,18 +207,20 @@ class SketchArtApp:
 
     def apply_grayscale(self):
         if self.original_image is None:
+            messagebox.showerror("Error", "Please upload an image first.")
             return
-        self.undo_stack.append(self.sketch_image)
+        self.undo_stack.append(self.sketch_image if self.sketch_image is not None else None)
         self.sketch_image = self.original_image.convert("L")
         self.display_sketch_image(self.sketch_image)
         self.set_status("Grayscale applied.")
 
     def open_brightness_dialog(self):
         if self.original_image is None:
+            messagebox.showerror("Error", "Please upload an image first.")
             return
         brightness_factor = simpledialog.askfloat("Brightness", "Enter factor (0.0 to 2.0):", minvalue=0.0, maxvalue=2.0)
         if brightness_factor is not None:
-            self.undo_stack.append(self.sketch_image)
+            self.undo_stack.append(self.sketch_image if self.sketch_image is not None else None)
             enhancer = ImageEnhance.Brightness(self.original_image)
             self.sketch_image = enhancer.enhance(brightness_factor)
             self.display_sketch_image(self.sketch_image)
@@ -206,7 +236,8 @@ class SketchArtApp:
 
     def undo_action(self):
         if self.undo_stack:
-            self.sketch_image = self.undo_stack.pop()
+            last = self.undo_stack.pop()
+            self.sketch_image = last
             self.display_sketch_image(self.sketch_image)
             self.set_status("Undo successful.")
         else:
@@ -217,10 +248,18 @@ class SketchArtApp:
             messagebox.showwarning("Save", "No sketch image to save.")
             return
         file_path = filedialog.asksaveasfilename(defaultextension=".png", 
-                                                 filetypes=[("PNG files", ".png"), ("JPEG files", ".jpg")])
+                                                 filetypes=[("PNG files", "*.png"), ("JPEG files", "*.jpg;*.jpeg")])
         if file_path:
-            self.sketch_image.save(file_path)
-            self.set_status("Image saved successfully.")
+            try:
+                # Convert grayscale to RGB if saving as JPEG
+                if file_path.lower().endswith((".jpg", ".jpeg")) and self.sketch_image.mode != "RGB":
+                    img_to_save = self.sketch_image.convert("RGB")
+                else:
+                    img_to_save = self.sketch_image
+                img_to_save.save(file_path)
+                self.set_status("Image saved successfully.")
+            except Exception as e:
+                messagebox.showerror("Save Error", f"Failed to save image: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
